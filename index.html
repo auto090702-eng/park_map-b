@@ -1,0 +1,177 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>狭小公園の利用アンケート</title>
+<link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.css">
+<style>
+  :root{--green:#1f7a4d;--green-d:#155c39;--ink:#1d2421;--sub:#5a635f;--bg:#ffffff;--line:#d9dfdc;--accent:#d94f2b}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    -webkit-text-size-adjust:100%;overscroll-behavior:none}
+  #app{display:flex;flex-direction:column;height:100%;height:100dvh}
+  header{flex:none;padding:10px 14px 10px;border-bottom:1px solid var(--line);background:#fff;z-index:1000}
+  header h1{margin:0;font-size:18px;line-height:1.35}
+  header p{margin:4px 0 0;font-size:14px;color:var(--sub);line-height:1.5}
+  .row{display:flex;gap:8px;margin-top:8px;align-items:center}
+  header p.org{font-size:12px;margin-top:2px}
+  header p.org a,.card a{color:var(--green-d)}
+  .help-btn{flex:none;font-size:15px;padding:9px 12px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink)}
+  #map{flex:1;min-height:0;touch-action:none;background:#eef1ef}
+  .locate{position:absolute;right:12px;bottom:calc(24px + env(safe-area-inset-bottom));z-index:1000;display:flex;align-items:center;gap:6px;
+    font-size:16px;font-weight:600;padding:12px 16px;border:0;border-radius:999px;background:#fff;color:var(--ink);
+    box-shadow:0 2px 10px rgba(0,0,0,.25)}
+  .locate svg{width:20px;height:20px}
+  .wrap{position:relative;flex:1;min-height:0;display:flex}
+  /* markers */
+  .mk{display:flex;align-items:center;cursor:pointer}
+  .pin{display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:50%;flex:none;
+    background:var(--green);color:#fff;font-weight:700;font-size:13px;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.4)}
+  .pin.sel{background:var(--accent);transform:scale(1.2)}
+  .lbl{display:none;margin-left:4px;background:rgba(255,255,255,.92);box-shadow:0 1px 3px rgba(0,0,0,.3);font-size:12px;padding:2px 6px;border-radius:4px;white-space:nowrap;color:var(--ink)}
+  .show-lbl .lbl{display:block}
+  .me{width:18px;height:18px;border-radius:50%;background:#2a6fdb;border:3px solid #fff;box-shadow:0 0 0 6px rgba(42,111,219,.2)}
+  /* popup */
+  .mapboxgl-popup-content{padding:14px 14px 12px;font-size:16px;line-height:1.5;border-radius:10px}
+  .mapboxgl-popup-close-button{font-size:22px;padding:2px 8px}
+  .pp-name{font-size:18px;font-weight:700;margin:0 22px 10px 0}
+  .pp-btn{display:block;text-align:center;text-decoration:none;background:var(--green);color:#fff !important;
+    font-size:17px;font-weight:700;padding:13px 14px;border-radius:10px}
+  .pp-btn:active{background:var(--green-d)}
+  .pp-note{font-size:13px;color:var(--sub);margin-top:8px}
+  /* help */
+  .overlay{position:absolute;inset:0;z-index:2000;background:rgba(0,0,0,.45);display:none;align-items:center;justify-content:center;padding:16px}
+  .overlay.show{display:flex}
+  figure{margin:0 0 12px}
+  figure img{display:block;width:100%;max-height:34vh;object-fit:cover;border-radius:10px;background:#eef1ef}
+  figcaption{font-size:14px;color:var(--sub);margin-top:4px}
+  .card{background:#fff;border-radius:14px;max-width:460px;width:100%;max-height:90%;overflow:auto;padding:18px 18px 14px;font-size:16px;line-height:1.6}
+  .card h2{margin:0 0 8px;font-size:19px}
+  .card ol{margin:0 0 12px;padding-left:1.4em}
+  .card li{margin-bottom:6px}
+  .card .small{font-size:13px;color:var(--sub);border-top:1px solid var(--line);padding-top:10px;margin-top:6px}
+  .card button{width:100%;font-size:17px;font-weight:700;padding:12px;border:0;border-radius:10px;background:var(--green);color:#fff;margin-top:12px}
+  .toast{position:absolute;left:50%;top:12px;transform:translateX(-50%);z-index:1500;background:rgba(29,36,33,.92);color:#fff;
+    font-size:15px;padding:10px 12px 10px 16px;border-radius:10px;display:none;max-width:90%;align-items:center;gap:10px}
+  .toast.show{display:flex}
+  #toastX{flex:none;background:none;border:0;color:#fff;font-size:22px;line-height:1;padding:2px 6px;cursor:pointer}
+</style>
+<script>function nextPhoto(img){const l=(img.dataset.alt||'').split(',').filter(Boolean);if(!l.length){img.parentNode.style.display='none';return;}img.dataset.alt=l.slice(1).join(',');img.src=l[0];}
+</script>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="row" style="margin-top:0">
+      <h1 style="flex:1">狭小公園の利用アンケート</h1>
+      <button class="help-btn" id="openHelp">使い方</button>
+    </div>
+    <p>ご自宅から一番近い狭小公園の番号を押して、回答に進んでください。</p>
+    <p class="org">調査主体：<a href="https://sites.google.com/view/takumaru/home" target="_blank" rel="noopener">熊本大学　交通政策分析研究室</a></p>
+  </header>
+  <div class="wrap">
+    <div id="map"></div>
+    <button class="locate" id="locate" aria-label="現在地を表示">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>現在地
+    </button>
+    <div class="toast" id="toast"><span id="toastMsg"></span><button id="toastX" aria-label="閉じる">×</button></div>
+    <div id="about" class="overlay" role="dialog" aria-modal="true">
+      <div class="card">
+        <h2>狭小公園とは？</h2>
+        <p style="margin:0 0 10px">遊具やベンチなどがあまり置かれてない小さな公園を対象としています。<br>例）</p>
+        <figure><img src="photo1.JPG" data-alt="photo1.jpg,photo1.jpeg,photo1.JPEG,photo1.png,photo1.PNG" alt="狭小公園の例1" onerror="nextPhoto(this)"></figure>
+        <figure><img src="photo2.JPG" data-alt="photo2.jpg,photo2.jpeg,photo2.JPEG,photo2.png,photo2.PNG" alt="狭小公園の例2" onerror="nextPhoto(this)"></figure>
+        <button id="toSteps">次へ</button>
+      </div>
+    </div>
+    <div id="help" class="overlay" role="dialog" aria-modal="true">
+      <div class="card">
+        <h2>回答の手順</h2>
+        <ol>
+          <li>ご自宅から一番近い狭小公園の番号を押してください。</li>
+          <li>「<b>この公園について回答する</b>」を押すと、アンケートが開きます。</li>
+        </ol>
+        <button id="closeHelp">地図を見る</button>
+        <p class="small"><b>※個人情報の取り扱いについて</b><br>このアンケートは無記名です。お名前や住所、メールアドレスを取得することはありません。<br>いただいた回答は研究の目的以外には使用しません。個人が特定される形で公表することもありません。<br>地図を見たり操作したりしても、あなたの位置情報が記録されることはありません。<br>回答は任意です。答えたくない質問には、無理にお答えいただかなくて結構です。</p>
+        <p class="small">調査主体：<a href="https://sites.google.com/view/takumaru/home" target="_blank" rel="noopener">熊本大学　交通政策分析研究室</a></p>
+      </div>
+    </div>
+  </div>
+</div>
+<script src="https://api.mapbox.com/mapbox-gl-js/v3.9.4/mapbox-gl.js"></script>
+<script>
+const FORM='https://docs.google.com/forms/d/e/1FAIpQLSeLd6XNse2atrvl1jtq6FAvTQWv6l9UcylIEVCdWIVt-ZXFXg/viewform';
+const ENTRY='entry.568726574';
+const MAPBOX_TOKEN='pk.eyJ1IjoiYXl1dG8iLCJhIjoiY212YWN4anNpMDFoNjJ3cHVsemRrMXB5ZCJ9.eek6ek9Bu9oXWX5kpM1_0g';
+const PARKS=[["01","有町第１公園",32.95269,130.722053],["02","植木中原公園",32.938332,130.70721],["03","岩野前田公園",32.90985,130.698145],["04","馬場公園",32.911758,130.695504],["05","西梶尾上り口公園",32.869902,130.713481],["06","永割公園",32.880049,130.694526],["07","仁連塔屋敷公園",32.895682,130.697268],["08","広住立野公園",32.898866,130.713289],["09","龍田四丁目北公園",32.842665,130.753658],["10","田子山公園",32.900337,130.665238],["11","浦田公園",32.965736,130.712954],["12","竹ノ下中央公園",32.954473,130.723768],["13","北迫町合ノ迫公園",32.870619,130.697237],["14","硯川町五反畑公園",32.870457,130.697882],["15","硯川町堀ノ内公園",32.86994,130.698294],["16","佐土原三丁目西公園",32.795955,130.779358],["17","佐土原三丁目公園",32.794284,130.777557],["18","佐土原三丁目中央第二公園",32.795402,130.780321],["19","桜木六丁目東第二公園",32.791129,130.783413],["20","桜木六丁目東公園",32.790764,130.783546],["21","画図所島公園",32.770464,130.731563],["22","下無田塘添第二公園",32.754198,130.739324],["23","下無田塘添公園",32.753151,130.736051],["24","下無田津田公園",32.754031,130.73318],["25","重富外無田南公園",32.754758,130.733035],["26","重富横塘公園",32.754397,130.732103],["27","秋津三丁目東公園",32.772483,130.774248],["28","小山七丁目東公園",32.830711,130.80261],["29","小山三丁目東公園",32.823444,130.79049],["30","小山四丁目南公園",32.82649,130.795729],["31","小山四丁目東第三公園",32.827545,130.79893],["32","小山四丁目北公園",32.828658,130.799025],["33","小山四丁目西公園",32.824705,130.792183],["34","小山四丁目東第二公園",32.828355,130.799481],["35","小山町西第二公園",32.832439,130.805815],["36","小山町西公園",32.831401,130.804132],["37","戸島五丁目北公園",32.82596,130.79939],["38","戸島五丁目東公園",32.826013,130.802673],["39","戸島町北公園",32.827331,130.805509],["40","戸島西七丁目西公園",32.804053,130.785406],["41","戸島西七丁目北公園",32.805564,130.786014],["42","戸島西七丁目北第二公園",32.804732,130.787747],["43","戸島西三丁目南公園",32.81356,130.780924],["44","戸島西七丁目第一公園",32.804545,130.787043],["45","戸島西四丁目第三公園",32.814808,130.790213],["46","中島町井手下公園",32.765454,130.638554],["47","野口三丁目公園",32.765039,130.669848],["48","上杉上ケ田第二公園",32.727383,130.690107],["49","富合大町公園",32.722356,130.68428],["50","榎津天神免公園",32.712651,130.694864],["51","清藤間添公園",32.714908,130.674431],["52","清藤間添第二公園",32.715459,130.675264],["53","御幸木部三丁目公園",32.745908,130.711874],["54","御幸笛田西宮ノ前公園",32.757514,130.707728],["55","御幸西二丁目東公園",32.758607,130.707491],["56","近見六丁目東公園",32.763321,130.696734],["57","丹生宮西小島公園",32.732112,130.713803],["58","千町藤原公園",32.732186,130.730082],["59","千町公園",32.726799,130.738764],["60","塚原北宮下公園",32.687891,130.745974],["61","豊田公園",32.686639,130.748642],["62","藤山宮下公園",32.685768,130.749151],["63","藤山宮下第二公園",32.685608,130.748744],["64","銭塘町六町公園",32.736721,130.64247],["65","下宮地沢水東第二公園",32.705317,130.743751],["66","下宮地沢水東公園",32.705098,130.74256],["67","下宮地沢水公園",32.705774,130.741169],["68","下宮地沢水東第三公園",32.704936,130.742911],["69","舞原東２号公園",32.704655,130.746828],["70","舞原東１号公園",32.705274,130.747073],["71","舞原西１０号公園",32.706966,130.746207],["72","舞原西１３号公園",32.711545,130.743877],["73","舞原西11号公園",32.707927,130.743006],["74","舞原西12号公園",32.708221,130.7414],["75","舞原西１５号公園",32.707694,130.742922],["76","舞原西１号公園",32.710449,130.745122],["77","舞原西４号公園",32.71231,130.744478],["78","舞原西２号公園",32.710822,130.744012],["79","舞原西１７号公園",32.709268,130.742663],["80","舞原西３号公園",32.708689,130.742559],["81","舞原西５号公園",32.707601,130.743885],["82","舞原西１４号公園",32.706384,130.74316],["83","舞原西６号公園",32.709745,130.746305],["84","舞原西９号公園",32.708197,130.743435],["85","舞原西８号公園",32.707121,130.741223],["86","舞原東３号公園",32.705562,130.752537]];
+
+mapboxgl.accessToken=MAPBOX_TOKEN;
+const bounds=PARKS.reduce((b,p)=>b.extend([p[3],p[2]]),new mapboxgl.LngLatBounds([PARKS[0][3],PARKS[0][2]],[PARKS[0][3],PARKS[0][2]]));
+const map=new mapboxgl.Map({container:'map',style:'mapbox://styles/mapbox/streets-v12',language:'ja',
+  bounds,fitBoundsOptions:{padding:30},minZoom:9,maxZoom:19,dragRotate:false,pitchWithRotate:false,touchPitch:false});
+map.touchZoomRotate.disableRotation();
+map.addControl(new mapboxgl.NavigationControl({showCompass:false}),'top-left');
+
+// fallback to GSI map if Mapbox fails (e.g. token problem)
+let fell=false;
+map.on('error',e=>{
+  if(fell)return;const st=e&&e.error&&e.error.status;if(st!==401&&st!==403&&st!==429)return;fell=true;
+  map.setStyle({version:8,sources:{gsi:{type:'raster',tiles:['https://cyberjapandata.gsi.go.jp/xyz/std/{z}/{x}/{y}.png'],tileSize:256,maxzoom:18,
+    attribution:'<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>'}},
+    layers:[{id:'gsi',type:'raster',source:'gsi'}]});
+});
+
+let selected=null;
+PARKS.forEach(([no,name,lat,lng])=>{
+  const el=document.createElement('div');el.className='mk';
+  el.innerHTML='<div class="pin">'+Number(no)+'</div><div class="lbl"></div>';el.lastChild.textContent=name;
+  const url=FORM+'?'+ENTRY+'='+encodeURIComponent(no+' '+name);
+  const pop=new mapboxgl.Popup({offset:18,maxWidth:'280px',focusAfterOpen:false}).setHTML(
+    '<div class="pp-name">'+Number(no)+'．'+name+'</div>'+
+    '<a class="pp-btn" href="'+url+'">この公園について回答する</a>'+
+    '<div class="pp-note">別の公園を選ぶ場合は、地図の他の番号を押してください。</div>');
+  pop.on('open',()=>{if(selected)selected.classList.remove('sel');selected=el.firstChild;selected.classList.add('sel');});
+  pop.on('close',()=>{el.firstChild.classList.remove('sel');if(selected===el.firstChild)selected=null;});
+  new mapboxgl.Marker({element:el,anchor:'left',offset:[-15,0]}).setLngLat([lng,lat]).setPopup(pop).addTo(map);
+});
+function updateLabels(){document.getElementById('map').classList.toggle('show-lbl',map.getZoom()>=15);}
+map.on('zoomend',updateLabels);map.on('load',updateLabels);
+
+// current location
+const toast=document.getElementById('toast');
+function hideToast(){toast.classList.remove('show');clearTimeout(say.t);}
+function say(t,ms){document.getElementById('toastMsg').textContent=t;toast.classList.add('show');clearTimeout(say.t);if(ms)say.t=setTimeout(hideToast,ms);}
+document.getElementById('toastX').onclick=hideToast;
+let me=null;
+function showMe(p){
+  const ll=[p.coords.longitude,p.coords.latitude];
+  if(!me){const d=document.createElement('div');d.className='me';me=new mapboxgl.Marker({element:d}).setLngLat(ll).addTo(map);}else me.setLngLat(ll);
+  map.flyTo({center:ll,zoom:16});hideToast();
+}
+function geoFail(){say('位置情報がオフになっています');}
+document.getElementById('locate').addEventListener('click',()=>{
+  if(!navigator.geolocation||!window.isSecureContext){geoFail();return;}
+  say('現在地を確認しています…',20000);
+  navigator.geolocation.getCurrentPosition(showMe,e=>{
+    if(e.code===1){geoFail();return;}
+    navigator.geolocation.getCurrentPosition(showMe,geoFail,{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+  },{enableHighAccuracy:false,timeout:8000,maximumAge:300000});
+});
+
+// help
+const about=document.getElementById('about'),help=document.getElementById('help');
+function showAbout(){help.classList.remove('show');about.classList.add('show');about.querySelector('.card').scrollTop=0;}
+document.getElementById('openHelp').onclick=showAbout;
+document.getElementById('toSteps').onclick=()=>{about.classList.remove('show');help.classList.add('show');};
+document.getElementById('closeHelp').onclick=()=>help.classList.remove('show');
+help.addEventListener('click',e=>{if(e.target===help)help.classList.remove('show');});
+showAbout();
+
+// block page-level pinch zoom (iOS Safari ignores user-scalable)
+['gesturestart','gesturechange'].forEach(t=>document.addEventListener(t,e=>e.preventDefault(),{passive:false}));
+document.addEventListener('touchmove',e=>{if(e.touches.length>1&&!e.target.closest('#map'))e.preventDefault();},{passive:false});
+</script>
+</body>
+</html>
